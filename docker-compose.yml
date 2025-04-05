@@ -1,0 +1,10 @@
+version: "3.8"
+services:
+  biblioteca:
+    build: .
+    container_name: sistema_biblioteca
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./data:/app/data
+    command: tail -f /dev/null  # Mantener el contenedor activo
