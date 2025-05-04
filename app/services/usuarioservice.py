@@ -1,104 +1,68 @@
 from typing import List, Optional
 from app.models.usuario import Usuario
+from app.structures.binary_search_tree import BinarySearchTree
 
 class UsuarioService:
-    """Clase para gestionar las operaciones relacionadas con usuarios.
-
-    Esta clase proporciona métodos para administrar el ciclo de vida de los usuarios,
-    incluyendo operaciones CRUD (Crear, Leer, Actualizar, Eliminar) y búsquedas.
-
-    Attributes:
-        usuarios (List[Usuario]): Lista de todos los usuarios registrados.
-    """
+    """Clase para gestionar las operaciones relacionadas con usuarios."""
 
     def __init__(self):
-        """Inicializa la lista de usuarios del sistema."""
-        self.usuarios: List[Usuario] = []
+        self.usuarios_por_id = BinarySearchTree()
+        self.usuarios_por_nombre = BinarySearchTree()
 
     def agregar_usuario(self, usuario: Usuario) -> bool:
-        """Agrega un nuevo usuario al sistema.
-
-        Args:
-            usuario (Usuario): Objeto usuario a agregar.
-
-        Returns:
-            bool: True si el usuario fue agregado exitosamente, False si ya existe.
-        """
-        if self.buscar_usuario(usuario.id_usuario):
-            print(f"Usuario con ID {usuario.id_usuario} ya existe.")
-            return False
-        self.usuarios.append(usuario)
-        print(f"Usuario {usuario.nombre} (ID: {usuario.id_usuario}) agregado correctamente.")
-        return True
+        if self.usuarios_por_id.insert(usuario, lambda x: x.id_usuario):
+            self.usuarios_por_nombre.insert(usuario, lambda x: x.nombre.lower())
+            print(f"Usuario {usuario.nombre} (ID: {usuario.id_usuario}) agregado correctamente.")
+            return True
+        print(f"Usuario con ID {usuario.id_usuario} ya existe.")
+        return False
 
     def eliminar_usuario(self, id_usuario: int) -> bool:
-        """Elimina un usuario del sistema.
-
-        Args:
-            id_usuario (int): ID del usuario a eliminar.
-
-        Returns:
-            bool: True si el usuario fue eliminado exitosamente, False si no se encontró.
-        """
         usuario = self.buscar_usuario(id_usuario)
-        if usuario:
-            if usuario.libros_prestados:
-                print(f"No se puede eliminar el usuario {id_usuario} porque tiene libros prestados.")
-                return False
-            self.usuarios.remove(usuario)
-            print(f"Usuario con ID {id_usuario} eliminado correctamente.")
-            return True
-        print(f"Usuario con ID {id_usuario} no encontrado.")
-        return False
+        if not usuario:
+            print(f"Usuario con ID {id_usuario} no encontrado.")
+            return False
+        if usuario.libros_prestados:
+            print(f"No se puede eliminar el usuario {id_usuario} porque tiene libros prestados.")
+            return False
+
+        # Recrear los árboles sin el usuario eliminado
+        usuarios = [u for u in self.usuarios_por_id.inorder_traversal() if u.id_usuario != id_usuario]
+        self.usuarios_por_id = BinarySearchTree()
+        self.usuarios_por_nombre = BinarySearchTree()
+        for u in usuarios:
+            self.usuarios_por_id.insert(u, lambda x: x.id_usuario)
+            self.usuarios_por_nombre.insert(u, lambda x: x.nombre.lower())
+        print(f"Usuario con ID {id_usuario} eliminado correctamente.")
+        return True
 
     def actualizar_usuario(self, usuario: Usuario) -> bool:
-        """Actualiza los datos de un usuario existente.
-
-        Args:
-            usuario (Usuario): Objeto usuario con los datos actualizados.
-
-        Returns:
-            bool: True si el usuario fue actualizado exitosamente, False si no se encontró.
-        """
         usuario_existente = self.buscar_usuario(usuario.id_usuario)
-        if usuario_existente:
-            usuario_existente.nombre = usuario.nombre
-            usuario_existente.correo = usuario.correo
-            return True
-        print(f"Usuario con ID {usuario.id_usuario} no encontrado para actualizar.")
-        return False
+        if not usuario_existente:
+            print(f"Usuario con ID {usuario.id_usuario} no encontrado para actualizar.")
+            return False
+        self.eliminar_usuario(usuario.id_usuario)
+        self.agregar_usuario(usuario)
+        return True
 
     def buscar_usuario(self, id_usuario: int) -> Optional[Usuario]:
-        """Busca un usuario específico por su ID.
-
-        Args:
-            id_usuario (int): ID del usuario a buscar.
-
-        Returns:
-            Optional[Usuario]: El usuario encontrado o None si no existe.
-        """
-        for usuario in self.usuarios:
-            if usuario.id_usuario == id_usuario:
-                return usuario
-        return None
+        return self.usuarios_por_id.search(id_usuario, lambda x: x.id_usuario)
 
     def buscar_usuarios(self, atributo: str, valor: str) -> List[Usuario]:
-        """Busca usuarios por coincidencia parcial en cualquier atributo.
-
-        Args:
-            atributo (str): Nombre del atributo a buscar (nombre, correo, etc.).
-            valor (str): Valor a buscar en el atributo especificado.
-
-        Returns:
-            List[Usuario]: Lista de usuarios que coinciden con el criterio de búsqueda.
-        """
+        valor = valor.lower()
+        if atributo == 'nombre':
+            usuarios = self.usuarios_por_nombre.inorder_traversal()
+        else:
+            usuarios = self.usuarios_por_id.inorder_traversal()
         resultados = []
-        for usuario in self.usuarios:
-            if hasattr(usuario, atributo):
-                valor_usuario = getattr(usuario, atributo)
-                if valor.lower() in str(valor_usuario).lower():
-                    resultados.append(usuario)
-
+        for usuario in usuarios:
+            if atributo == 'nombre' and valor in usuario.nombre.lower():
+                resultados.append(usuario)
+            elif atributo == 'correo' and valor in usuario.correo.lower():
+                resultados.append(usuario)
         if not resultados:
             print(f"No se encontraron usuarios con {atributo} que contenga '{valor}'.")
         return resultados
+
+    def listar_usuarios(self) -> List[Usuario]:
+        return self.usuarios_por_id.inorder_traversal()

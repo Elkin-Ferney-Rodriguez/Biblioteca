@@ -1,5 +1,6 @@
 from typing import List, Optional
 from app.models.libro import Libro
+from app.structures.binary_search_tree import BinarySearchTree
 
 class LibroService:
     """Clase para gestionar las operaciones relacionadas con libros en la biblioteca.
@@ -8,14 +9,14 @@ class LibroService:
     incluyendo operaciones CRUD (Crear, Leer, Actualizar, Eliminar) y búsquedas.
 
     Attributes:
-        libros (List[Libro]): Lista de todos los libros en el sistema
-        usuarios (List[Usuario]): Lista de todos los usuarios registrados
+        libros_por_id (BinarySearchTree): Árbol binario de búsqueda para libros por ID
+        libros_por_titulo (BinarySearchTree): Árbol binario de búsqueda para libros por título
     """
 
     def __init__(self):
-        """Inicializa las listas de libros y usuarios del sistema."""
-        self.libros: List[Libro] = []
-        self.usuarios: List[Usuario] = []
+        """Inicializa los árboles binarios de búsqueda para libros."""
+        self.libros_por_id = BinarySearchTree()
+        self.libros_por_titulo = BinarySearchTree()
 
     def agregar_libro(self, libro: Libro) -> bool:
         """Agrega un nuevo libro al sistema.
@@ -26,12 +27,14 @@ class LibroService:
         Returns:
             bool: True si el libro fue agregado exitosamente, False si ya existe
         """
-        if self.buscar_libro(libro.id_libro):
-            print(f"Libro con ID {libro.id_libro} ya existe.")
-            return False
-        self.libros.append(libro)
-        print(f"Libro con ID {libro.id_libro} agregado.")
-        return True
+        # Intentar insertar en el árbol por ID
+        if self.libros_por_id.insert(libro, lambda x: x.id_libro):
+            # Si se insertó correctamente, agregarlo también al árbol por título
+            self.libros_por_titulo.insert(libro, lambda x: x.titulo.lower())
+            print(f"Libro con ID {libro.id_libro} agregado.")
+            return True
+        print(f"Libro con ID {libro.id_libro} ya existe.")
+        return False
 
     def eliminar_libro(self, id_libro: int) -> bool:
         """Elimina un libro del sistema.
@@ -42,13 +45,27 @@ class LibroService:
         Returns:
             bool: True si el libro fue eliminado exitosamente, False si no se encontró
         """
+        # Por ahora, obtenemos todos los libros y recreamos los árboles
+        # En una implementación más avanzada, se podría implementar la eliminación directa en el árbol
         libro = self.buscar_libro(id_libro)
-        if libro:
-            self.libros.remove(libro)
-            print(f"Libro con ID {id_libro} eliminado.")
-            return True
-        print(f"Libro con ID {id_libro} no encontrado.")
-        return False
+        if not libro:
+            print(f"Libro con ID {id_libro} no encontrado.")
+            return False
+
+        # Obtener todos los libros excepto el que queremos eliminar
+        libros = [l for l in self.libros_por_id.inorder_traversal() if l.id_libro != id_libro]
+
+        # Recrear los árboles
+        self.libros_por_id = BinarySearchTree()
+        self.libros_por_titulo = BinarySearchTree()
+
+        # Reinsertar todos los libros excepto el eliminado
+        for l in libros:
+            self.libros_por_id.insert(l, lambda x: x.id_libro)
+            self.libros_por_titulo.insert(l, lambda x: x.titulo.lower())
+
+        print(f"Libro con ID {id_libro} eliminado.")
+        return True
 
     def actualizar_libro(self, libro: Libro) -> bool:
         """Actualiza los datos de un libro existente.
@@ -60,13 +77,14 @@ class LibroService:
             bool: True si el libro fue actualizado exitosamente, False si no se encontró
         """
         libro_existente = self.buscar_libro(libro.id_libro)
-        if libro_existente:
-            libro_existente.titulo = libro.titulo
-            libro_existente.autor = libro.autor
-            libro_existente.categoria = libro.categoria
-            return True
-        print(f"Libro con ID {libro.id_libro} no se pudo encontrar para actualizar.")
-        return False
+        if not libro_existente:
+            print(f"Libro con ID {libro.id_libro} no se pudo encontrar para actualizar.")
+            return False
+
+        # Eliminar el libro actual y agregar la versión actualizada
+        self.eliminar_libro(libro.id_libro)
+        self.agregar_libro(libro)
+        return True
 
     def buscar_libros(self, atributo: str, valor: str) -> List[Libro]:
         """Busca libros por coincidencia parcial en cualquier atributo.
@@ -78,13 +96,23 @@ class LibroService:
         Returns:
             List[Libro]: Lista de libros que coinciden con el criterio de búsqueda
         """
+        valor = valor.lower()
         resultados = []
-        for libro in self.libros:
-            if hasattr(libro, atributo):
-                valor_libro = getattr(libro, atributo)
-                # Convertimos ambos valores a string en minúscula
-                if valor.lower() in str(valor_libro).lower():
-                    resultados.append(libro)
+
+        # Usar el árbol más apropiado según el atributo de búsqueda
+        if atributo == 'titulo':
+            libros = self.libros_por_titulo.inorder_traversal()
+        else:
+            libros = self.libros_por_id.inorder_traversal()
+
+        # Realizar la búsqueda
+        for libro in libros:
+            if atributo == 'titulo' and valor in libro.titulo.lower():
+                resultados.append(libro)
+            elif atributo == 'autor' and libro.autor and valor in libro.autor.lower():
+                resultados.append(libro)
+            elif atributo == 'categoria' and libro.categoria and valor in libro.categoria.lower():
+                resultados.append(libro)
 
         if not resultados:
             print(f"No se encontraron libros con {atributo} que contenga '{valor}'.")
@@ -99,7 +127,12 @@ class LibroService:
         Returns:
             Optional[Libro]: El libro encontrado o None si no existe
         """
-        for libro in self.libros:
-            if libro.id_libro == id_libro:
-                return libro
-        return None
+        return self.libros_por_id.search(id_libro, lambda x: x.id_libro)
+
+    def listar_libros(self) -> List[Libro]:
+        """Retorna todos los libros ordenados por ID.
+
+        Returns:
+            List[Libro]: Lista ordenada de todos los libros
+        """
+        return self.libros_por_id.inorder_traversal()

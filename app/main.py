@@ -32,9 +32,26 @@ def mostrar_menu_ordenamiento():
     print("4. Categoría")
     print("5. Disponibilidad")
 
+def menu_usuarios():
+    """Muestra el menú de gestión de usuarios."""
+    print("\n--- Gestión de Usuarios ---")
+    print("1. Agregar usuario")
+    print("2. Eliminar usuario")
+    print("3. Actualizar usuario")
+    print("4. Buscar usuarios")
+    print("5. Volver al menú principal")
+
+def menu_prestamos():
+    """Muestra el menú de préstamos y devoluciones."""
+    print("\n--- Préstamos y Devoluciones ---")
+    print("1. Prestar libro")
+    print("2. Devolver libro")
+    print("3. Volver al menú principal")
+
 def ordenar_libros(libros: List[Libro], criterio: str) -> List[Libro]:
     """
     Ordena la lista de libros según el criterio especificado.
+    Nota: Con árboles binarios, algunos ordenamientos ya vienen implícitos.
 
     Args:
         libros: Lista de libros a ordenar
@@ -44,7 +61,7 @@ def ordenar_libros(libros: List[Libro], criterio: str) -> List[Libro]:
         Lista ordenada de libros
     """
     if criterio == 'id':
-        return sorted(libros, key=lambda x: x.id_libro)
+        return libros  # Ya viene ordenado del árbol por ID
     elif criterio == 'titulo':
         return sorted(libros, key=lambda x: x.titulo.lower())
     elif criterio == 'autor':
@@ -66,12 +83,10 @@ def mostrar_libros(libros: List[Libro]):
         print("\nNo hay libros registrados en el sistema.")
         return
 
-    # Definir el formato de la tabla
     print("\n{:<5} {:<30} {:<20} {:<15} {:<12}".format(
         "ID", "Título", "Autor", "Categoría", "Disponible"))
     print("-" * 85)
 
-    # Mostrar cada libro
     for libro in libros:
         disponible = "Sí" if libro.disponible else "No"
         print("{:<5} {:<30} {:<20} {:<15} {:<12}".format(
@@ -81,22 +96,6 @@ def mostrar_libros(libros: List[Libro]):
             libro.categoria[:12] + "..." if len(libro.categoria) > 12 else libro.categoria,
             disponible
         ))
-
-def menu_usuarios():
-    """Muestra el menú de gestión de usuarios."""
-    print("\n--- Gestión de Usuarios ---")
-    print("1. Agregar usuario")
-    print("2. Eliminar usuario")
-    print("3. Actualizar usuario")
-    print("4. Buscar usuarios")
-    print("5. Volver al menú principal")
-
-def menu_prestamos():
-    """Muestra el menú de préstamos y devoluciones."""
-    print("\n--- Préstamos y Devoluciones ---")
-    print("1. Prestar libro")
-    print("2. Devolver libro")
-    print("3. Volver al menú principal")
 
 def solicitar_entero(mensaje: str) -> int:
     """Solicita un número entero al usuario con validación."""
@@ -108,7 +107,6 @@ def solicitar_entero(mensaje: str) -> int:
 
 def main():
     """Función principal del programa."""
-    # Inicializar servicios
     libro_service = LibroService()
     usuario_service = UsuarioService()
     prestamo_service = PrestamoService()
@@ -136,23 +134,25 @@ def main():
 
                 elif opcion_libros == "3":  # Actualizar libro
                     id_libro = solicitar_entero("ID del libro a actualizar: ")
-                    titulo = input("Nuevo título del libro: ")
-                    autor = input("Nuevo autor del libro: ")
-                    categoria = input("Nueva categoría del libro: ")
-                    libro = Libro(id_libro, titulo, autor, categoria)
-                    libro_service.actualizar_libro(libro)
+                    libro_actual = libro_service.buscar_libro(id_libro)
+                    if libro_actual:
+                        titulo = input(f"Nuevo título del libro [{libro_actual.titulo}]: ") or libro_actual.titulo
+                        autor = input(f"Nuevo autor del libro [{libro_actual.autor}]: ") or libro_actual.autor
+                        categoria = input(f"Nueva categoría del libro [{libro_actual.categoria}]: ") or libro_actual.categoria
+                        libro = Libro(id_libro, titulo, autor, categoria)
+                        libro_service.actualizar_libro(libro)
+                    else:
+                        print(f"No se encontró el libro con ID {id_libro}")
 
                 elif opcion_libros == "4":  # Buscar libros
                     atributo = input("Atributo para buscar (titulo, autor, categoria): ")
                     valor = input(f"Valor a buscar en {atributo}: ")
                     resultados = libro_service.buscar_libros(atributo, valor)
-                    if resultados:
-                        mostrar_libros(resultados)
-                    else:
-                        print(f"No se encontraron libros con {atributo} que contenga '{valor}'.")
+                    mostrar_libros(resultados)
 
                 elif opcion_libros == "5":  # Listar todos los libros
-                    if not libro_service.libros:
+                    libros = libro_service.listar_libros()
+                    if not libros:
                         print("\nNo hay libros registrados en el sistema.")
                         continue
 
@@ -168,7 +168,7 @@ def main():
                     }.get(opcion_orden)
 
                     if criterio:
-                        libros_ordenados = ordenar_libros(libro_service.libros, criterio)
+                        libros_ordenados = ordenar_libros(libros, criterio)
                         mostrar_libros(libros_ordenados)
                     else:
                         print("Opción de ordenamiento no válida.")
@@ -194,10 +194,14 @@ def main():
 
                 elif opcion_usuarios == "3":  # Actualizar usuario
                     id_usuario = solicitar_entero("ID del usuario a actualizar: ")
-                    nombre = input("Nuevo nombre del usuario: ")
-                    correo = input("Nuevo correo del usuario: ")
-                    usuario = Usuario(id_usuario, nombre, correo)
-                    usuario_service.actualizar_usuario(usuario)
+                    usuario_actual = usuario_service.buscar_usuario(id_usuario)
+                    if usuario_actual:
+                        nombre = input(f"Nuevo nombre del usuario [{usuario_actual.nombre}]: ") or usuario_actual.nombre
+                        correo = input(f"Nuevo correo del usuario [{usuario_actual.correo}]: ") or usuario_actual.correo
+                        usuario = Usuario(id_usuario, nombre, correo)
+                        usuario_service.actualizar_usuario(usuario)
+                    else:
+                        print(f"No se encontró el usuario con ID {id_usuario}")
 
                 elif opcion_usuarios == "4":  # Buscar usuarios
                     atributo = input("Atributo para buscar (nombre, correo): ")
@@ -206,8 +210,6 @@ def main():
                     if resultados:
                         for usuario in resultados:
                             print(usuario)
-                    else:
-                        print(f"No se encontraron usuarios con {atributo} que contenga '{valor}'.")
 
                 elif opcion_usuarios == "5":  # Volver al menú principal
                     break
